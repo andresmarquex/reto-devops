@@ -1,0 +1,17 @@
+---
+- name: Configurar políticas por defecto (Denegar todo el tráfico entrante)
+  community.general.ufw:
+    state: enabled
+    policy: deny
+    direction: incoming
+
+- name: Permitir puertos definidos en las variables del rol
+  community.general.ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+  loop: "{{ firewall_allowed_ports }}"
+
+- name: Habilitar el logging del Firewall para auditorías de seguridad
+  community.general.ufw:
+    logging: medium

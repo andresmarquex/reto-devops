@@ -1,0 +1,113 @@
+name: CI/CD DevSecOps Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: mi-microservicio-app
+  DOCKERFILE_PATH: ./app/Dockerfile
+
+jobs:
+  # ------------------------------------------------------------------
+  # 1. ETAPA DE VALIDACIÓN, CALIDAD Y SEGURIDAD (CI)
+  # ------------------------------------------------------------------
+  validate:
+    name: Lint, Test & Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python/Node (Dependiendo de tu app)
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Dependencies & Run Unit Tests
+        run: |
+          pip install -r app/requirements.txt
+          pytest app/tests/ --doctest-modules --junitxml=junit/test-results.xml
+
+      - name: Security Scan (SecOps con Trivy)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          ignore-unfixed: true
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+
+  # ------------------------------------------------------------------
+  # 2. ETAPA DE CONSTRUCCIÓN Y EMPAQUETADO
+  # ------------------------------------------------------------------
+  build-and-push:
+    name: Build Docker Image & Push to ECR
+    needs: validate
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, Tag, and Push Image to ECR
+        env:
+          ECR_REGISTRY: ${{ id.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -f ${{ env.DOCKERFILE_PATH }} ./app
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+  # ------------------------------------------------------------------
+  # 3. ETAPA DE DESPLIEGUE SEGURO (MÉTODO GITOPS / ARGOCD)
+  # ------------------------------------------------------------------
+  gitops-deploy:
+    name: Update GitOps Manifests
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Configuration Repository
+        uses: actions/checkout@v4
+        with:
+          repository: 'tu-usuario/tu-repositorio-gitops' # O tu misma rama de manifiestos
+          token: ${{ secrets.GITOPS_GITHUB_TOKEN }}
+
+      - name: Update Image Tag in Kubernetes Deployment Manifest
+        run: |
+          cd kubernetes/apps/
+          sed -i 's|image: .*|image: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPOSITORY }}:${{ github.sha }}|g' deployment.yaml
+
+      - name: Commit and Push Changes to GitOps Repo
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add kubernetes/apps/deployment.yaml
+          git commit -m "chore(cd): update application image tag to ${{ github.sha }} [skip ci]"
+          git push origin main
+
+  # ------------------------------------------------------------------
+  # 4. NOTIFICACIÓN EN CASO DE FALLOS (Punto 11 del reto)
+  # ------------------------------------------------------------------
+  notify-failure:
+    name: Slack/Teams Notification on Failure
+    needs: [validate, build-and-push, gitops-deploy]
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send Webhook Notification
+        run: |
+          echo "Enviando alerta a Slack/Teams..."
+          # curl -X POST -H 'Content-type: application/json' --data '{"text":"❌ El Pipeline de CI/CD falló en el commit ${{ github.sha }}."}' ${{ secrets.SLACK_WEBHOOK_URL }}

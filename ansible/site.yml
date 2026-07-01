@@ -1,0 +1,12 @@
+---
+- name: Aplicar Configuración y Hardening a Servidores Linux
+  hosts: linux_servers
+  become: true
+  roles:
+    - base_linux
+    - hardening_ufw
+
+- name: Aplicar Automatización y Auditoría a Servidores Windows
+  hosts: windows_servers
+  roles:
+    - win_active_directory

@@ -1,0 +1,18 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: production-project
+  namespace: argocd
+spec:
+  description: "Proyecto de producción seguro para el reto técnico de Lite Thinking"
+  # Permitir despliegues únicamente en el clúster local
+  destinations:
+    - namespace: production
+      server: https://kubernetes.default.svc
+  # Orígenes permitidos (Solo nuestro repositorio Git verificado)
+  sourceRepos:
+    - 'https://github.com/tu-usuario/tu-repositorio-platform-devops-challenge.git'
+  # Habilitar el despliegue de recursos estándar de Kubernetes
+  clusterResourceWhitelist:
+    - group: '*'
+      kind: '*'

@@ -1,0 +1,7 @@
+---
+linux_base_packages:
+  - curl
+  - wget
+  - git
+  - htop
+  - net-tools

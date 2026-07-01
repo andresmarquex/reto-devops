@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: microservicio-api
+  namespace: production
+  labels:
+    app: microservicio-api
+    tier: backend
+spec:
+  replicas: 3 # Alta disponibilidad: Mínimo 3 pods distribuidos
+  strategy:
+    type: RollingUpdate # Actualización progresiva sin caída del servicio (Punto 1)
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: microservicio-api
+  template:
+    metadata:
+      labels:
+        app: microservicio-api
+    spec:
+      containers:
+        - name: api-contenedor
+          image: 123456789012.dkr.ecr.us-east-1.amazonaws.com/mi-microservicio-app:latest # Se actualiza vía GitHub Actions
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          
+          # 📋 Gestión de Recursos (Punto 10 - Optimización)
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          
+          # 🩺 Soportes de Red y Disponibilidad (Health Checks)
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 20

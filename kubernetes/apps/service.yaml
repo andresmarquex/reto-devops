@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: microservicio-api-service
+  namespace: production
+  labels:
+    app: microservicio-api
+spec:
+  type: ClusterIP # Se expone internamente; el Ingress/ALB controlará el acceso exterior
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+  selector:
+    app: microservicio-api

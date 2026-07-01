@@ -1,0 +1,33 @@
+---
+- name: Validar e instalar parches críticos de seguridad de Windows
+  ansible.windows.win_updates:
+    category_names:
+      - SecurityUpdates
+      - CriticalUpdates
+    state: installed
+  register: win_updates_result
+
+- name: Reiniciar el servidor Windows si las actualizaciones lo requieren
+  ansible.windows.win_reboot:
+  when: win_updates_result.reboot_required
+
+- name: Instalar servicios de Active Directory (AD-Domain-Services)
+  microsoft.ad.windows_feature:
+    name: AD-Domain-Services
+    include_management_tools: true
+    state: present
+
+- name: Ejecutar script de PowerShell para auditar la política de contraseñas de GPO
+  ansible.windows.win_powershell:
+    script: |
+      Import-Module ActiveDirectory
+      $policy = Get-ADDefaultDomainPasswordPolicy
+      [PSCustomObject]@{
+          ComplexityEnabled = $policy.ComplexityEnabled
+          MinPasswordLength = $policy.MinPasswordLength
+      } | ConvertTo-Json
+  register: gpo_audit_output
+
+- name: Mostrar reporte de auditoría de GPO en los logs de Ansible
+  ansible.builtin.debug:
+    var: gpo_audit_output.output

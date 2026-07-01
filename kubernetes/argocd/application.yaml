@@ -1,0 +1,28 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: microservicio-api-gitops
+  namespace: argocd # Espacio de nombres donde reside ArgoCD
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default # Proyecto por defecto dentro de ArgoCD
+
+  # 1. FUENTE (Source): Dónde está el código de infraestructura/manifiestos
+  source:
+    repoURL: 'https://github.com/tu-usuario/tu-repositorio-platform-devops-challenge.git'
+    targetRevision: HEAD # Monitorea la última versión de la rama principal
+    path: kubernetes/apps # Ruta exacta que contiene deployment, service y hpa
+
+  # 2. DESTINO (Destination): Dónde se va a desplegar
+  destination:
+    server: 'https://kubernetes.default.svc' # Desplegar en el propio clúster local (EKS)
+    namespace: production # Namespace de destino de la aplicación
+
+  # 3. POLÍTICA DE SINCRONIZACIÓN (Sync Policy)
+  syncPolicy:
+    automated:
+      prune: true # Elimina automáticamente recursos en K8s si fueron borrados en Git
+      selfHeal: true # Si alguien modifica el clúster manualmente, ArgoCD lo revierte al estado de Git
+    syncOptions:
+      - CreateNamespace=true # Crea el namespace 'production' si no existe

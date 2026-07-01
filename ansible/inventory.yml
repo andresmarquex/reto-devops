@@ -1,0 +1,21 @@
+all:
+  children:
+    linux_servers:
+      hosts:
+        web-01:
+          ansible_host: 192.168.1.10
+          ansible_user: ubuntu
+          ansible_become: true
+
+    windows_servers:
+      hosts:
+        dc-01:
+          ansible_host: 192.168.1.20
+          ansible_user: Administrator
+          ansible_password: "{{ vault_win_password | default('SecretPassword123!') }}"
+      
+      # 💡 Centralizamos las variables de conexión para entornos Windows
+      vars:
+        ansible_connection: winrm
+        ansible_winrm_server_cert_validation: ignore
+        ansible_winrm_transport: ntlm  # O 'credssp' si vas a delegar credenciales en AD

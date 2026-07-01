@@ -1,0 +1,25 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: microservicio-api-hpa
+  namespace: production
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: microservicio-api
+  minReplicas: 3
+  maxReplicas: 10 # Capacidad de escalar hasta 10 pods automáticamente durante ráfagas de tráfico
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70 # Si el uso promedio de CPU supera el 70%, Kubernetes levanta nuevos pods
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80 # Si la memoria supera el 80%, también escala

@@ -1,0 +1,20 @@
+---
+- name: Actualizar la cache de paquetes (Debian/Ubuntu)
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+  when: ansible_os_family == "Debian"
+
+- name: Instalar paquetes de diagnóstico de red y utilitarios
+  ansible.builtin.package:
+    name:
+      - curl
+      - wget
+      - mtr-tiny    # Para diagnóstico de latencia (Punto 2)
+      - dnsutils    # Herramientas DNS (dig, nslookup)
+      - git
+    state: present
+
+- name: Asegurar que el huso horario sea el correcto (UTC)
+  community.general.timezone:
+    name: UTC

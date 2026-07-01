@@ -1,0 +1,88 @@
+---
+- name: Configuración Base, Actualización y Hardening de Servidores
+  hosts: all
+  become: "{{ 'true' if ansible_connection != 'winrm' else 'false' }}"
+  gather_facts: true
+
+  tasks:
+    # ==================================================================
+    # 🐧 BLOQUE PARA SERVIDORES LINUX (Ubuntu/Debian/RHEL)
+    # ==================================================================
+    - name: Configuración y Parcheo para Servidores Linux
+      when: ansible_os_family != "Windows"
+      block:
+        - name: LINUX | Actualizar el gestor de paquetes y aplicar parches de seguridad
+          ansible.builtin.apt:
+            upgrade: dist
+            update_cache: true
+            cache_valid_time: 3600
+          when: ansible_os_family == "Debian"
+
+        - name: LINUX | Instalar herramientas de red y diagnóstico requeridas (Punto 2)
+          ansible.builtin.package:
+            name:
+              - curl
+              - wget
+              - git
+              - mtr-tiny
+              - dnsutils
+            state: present
+
+        - name: LINUX | Hardening - Configurar reglas de Firewall (UFW) (Punto 4)
+          community.general.ufw:
+            rule: allow
+            port: "{{ item }}"
+            proto: tcp
+          loop:
+            - '22'   # SSH Seguro
+            - '80'   # HTTP
+            - '443'  # HTTPS
+
+        - name: LINUX | Hardening - Habilitar el Firewall
+          community.general.ufw:
+            state: enabled
+            policy: deny
+
+    # ==================================================================
+    # 🪟 BLOQUE PARA SERVIDORES WINDOWS SERVER (Punto 1 - Gestión AD)
+    # ==================================================================
+    - name: Configuración y Automatización para Windows Server
+      when: ansible_os_family == "Windows"
+      block:
+        - name: WINDOWS | Instalar parches críticos y de seguridad acumulativos
+          ansible.windows.win_updates:
+            category_names:
+              - SecurityUpdates
+              - CriticalUpdates
+            state: installed
+          register: update_result
+
+        - name: WINDOWS | Reiniciar si las actualizaciones lo requieren
+          ansible.windows.win_reboot:
+          when: update_result.reboot_required
+
+        - name: WINDOWS | Asegurar que las características de Active Directory estén instaladas
+          microsoft.ad.windows_feature: # Usando colecciones modernas de Ansible para AD
+            name: AD-Domain-Services
+            include_management_tools: true
+            state: present
+
+        - name: WINDOWS | Ejecutar Script de PowerShell para auditar Group Policies (GPO)
+          ansible.windows.win_powershell:
+            script: |
+              # Script para validar que las directivas de contraseñas complejas estén activas
+              Get-ADDefaultDomainPasswordPolicy | Select-Object ComplexityEnabled, MinPasswordLength
+          register: gpo_audit
+
+        - name: WINDOWS | Mostrar resultado de la auditoría de GPO en consola
+          ansible.builtin.debug:
+            var: gpo_audit.output
+
+        - name: WINDOWS | Hardening - Configurar Firewall de Windows para producción
+          community.windows.win_firewall_rule:
+            name: "Allow_HTTPS"
+            localport: 443
+            action: allow
+            direction: in
+            protocol: tcp
+            state: present
